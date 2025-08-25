@@ -6,15 +6,25 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
 from selenium.webdriver.chrome.options import Options
+# 【新增】导入 Service 和 ChromeDriverManager
+from selenium.webdriver.chrome.service import Service as ChromeService
+from webdriver_manager.chrome import ChromeDriverManager
 
 def setup_driver():
-    """配置并返回一个无头模式的 Chrome WebDriver"""
+    """【已修改】使用 webdriver-manager 配置并返回一个无头模式的 Chrome WebDriver"""
     chrome_options = Options()
-    chrome_options.add_argument("--headless")
+    # 使用 --headless=new 是更现代的无头模式标志
+    chrome_options.add_argument("--headless=new")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
+    # 增加 --disable-gpu 选项，有时在Linux服务器上是必需的
+    chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("--window-size=1920,1080")
-    driver = webdriver.Chrome(options=chrome_options)
+    
+    # 【核心修改】使用 webdriver-manager 自动安装并配置与浏览器匹配的驱动
+    # 它会检测到我们安装的Chrome 114，并下载正确的驱动程序
+    service = ChromeService(ChromeDriverManager().install())
+    driver = webdriver.Chrome(service=service, options=chrome_options)
     return driver
 
 def renew_account_domains(account_num, username, password, domains):
@@ -56,13 +66,12 @@ def renew_account_domains(account_num, username, password, domains):
                 print(f"     找到 {domain} 的管理链接，正在点击...")
                 manage_link.click()
 
-                # 5. 【关键步骤】在管理页面上，首先点击 "Renew" 标签页按钮
+                # 5. 点击 "Renew" 标签页按钮
                 renew_tab_button_xpath = "//button[contains(@class, 'tab-btn') and normalize-space()='Renew']"
                 renew_tab_button = wait.until(EC.element_to_be_clickable((By.XPATH, renew_tab_button_xpath)))
                 print(f"     找到 'Renew' 标签页按钮，正在点击...")
                 renew_tab_button.click()
                 
-                # 等待一小会儿，确保标签页内容加载完毕
                 time.sleep(1)
 
                 # 6. 点击 "Free Renewal" 按钮
@@ -85,7 +94,7 @@ def renew_account_domains(account_num, username, password, domains):
             except (TimeoutException, NoSuchElementException):
                 print(f"     ❌ 域名 {domain} 续期失败或无需续期。可能原因：未到续期时间或页面结构已改变。")
                 driver.save_screenshot(f"error_{domain}.png")
-                continue # 继续处理下一个域名
+                continue
 
     except Exception as e:
         print(f"处理账户 {username} 时发生严重错误: {e}")
