@@ -1,9 +1,8 @@
-# 您可以把名字改成 DPDNS Domain Auto-Renew，更贴切一些
 name: DPDNS Domain Auto-Renew
 
 on:
   schedule:
-    # 【已为您修改】在每年的3月28日和4月28日的 UTC 时间 3:00 运行
+    # 在每年的3月28日和4月28日的 UTC 时间 3:00 运行
     - cron: '0 3 28 3,4 *'
   
   # 允许手动触发
@@ -27,11 +26,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install selenium webdriver-manager
 
+      # 【已为您修改】固定Chrome浏览器版本以保证兼容性
       - name: Setup Chrome
         uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: '114'
       
       - name: Run renewal script
-        # 将所有配置的秘密作为环境变量传递给脚本
         env:
           ACCOUNT_1_USERNAME: ${{ secrets.ACCOUNT_1_USERNAME }}
           ACCOUNT_1_PASSWORD: ${{ secrets.ACCOUNT_1_PASSWORD }}
@@ -40,11 +41,6 @@ jobs:
           ACCOUNT_2_USERNAME: ${{ secrets.ACCOUNT_2_USERNAME }}
           ACCOUNT_2_PASSWORD: ${{ secrets.ACCOUNT_2_PASSWORD }}
           ACCOUNT_2_DOMAINS: ${{ secrets.ACCOUNT_2_DOMAINS }}
-
-          # 如果您添加了第三个账户，在这里取消注释并添加即可
-          # ACCOUNT_3_USERNAME: ${{ secrets.ACCOUNT_3_USERNAME }}
-          # ACCOUNT_3_PASSWORD: ${{ secrets.ACCOUNT_3_PASSWORD }}
-          # ACCOUNT_3_DOMAINS: ${{ secrets.ACCOUNT_3_DOMAINS }}
         run: python renew.py
       
       - name: Upload screenshot on failure
