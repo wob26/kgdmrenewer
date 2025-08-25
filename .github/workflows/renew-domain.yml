@@ -1,10 +1,10 @@
-name: KG Domain Auto-Renew
+# 您可以把名字改成 DPDNS Domain Auto-Renew，更贴切一些
+name: DPDNS Domain Auto-Renew
 
 on:
   schedule:
-    # 在每年的2月1日和3月1日的 UTC 时间 3:00 运行
-    # (北京时间上午11点)
-    - cron: '0 3 1 2,3 *'
+    # 【已为您修改】在每年的3月28日和4月28日的 UTC 时间 3:00 运行
+    - cron: '0 3 28 3,4 *'
   
   # 允许手动触发
   workflow_dispatch:
