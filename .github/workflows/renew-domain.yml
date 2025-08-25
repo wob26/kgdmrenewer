@@ -1,0 +1,55 @@
+name: KG Domain Auto-Renew
+
+on:
+  schedule:
+    # 在每年的2月1日和3月1日的 UTC 时间 3:00 运行
+    # (北京时间上午11点)
+    - cron: '0 3 1 2,3 *'
+  
+  # 允许手动触发
+  workflow_dispatch:
+
+jobs:
+  renew:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install selenium webdriver-manager
+
+      - name: Setup Chrome
+        uses: browser-actions/setup-chrome@v1
+      
+      - name: Run renewal script
+        # 将所有配置的秘密作为环境变量传递给脚本
+        env:
+          ACCOUNT_1_USERNAME: ${{ secrets.ACCOUNT_1_USERNAME }}
+          ACCOUNT_1_PASSWORD: ${{ secrets.ACCOUNT_1_PASSWORD }}
+          ACCOUNT_1_DOMAINS: ${{ secrets.ACCOUNT_1_DOMAINS }}
+          
+          ACCOUNT_2_USERNAME: ${{ secrets.ACCOUNT_2_USERNAME }}
+          ACCOUNT_2_PASSWORD: ${{ secrets.ACCOUNT_2_PASSWORD }}
+          ACCOUNT_2_DOMAINS: ${{ secrets.ACCOUNT_2_DOMAINS }}
+
+          # 如果您添加了第三个账户，在这里取消注释并添加即可
+          # ACCOUNT_3_USERNAME: ${{ secrets.ACCOUNT_3_USERNAME }}
+          # ACCOUNT_3_PASSWORD: ${{ secrets.ACCOUNT_3_PASSWORD }}
+          # ACCOUNT_3_DOMAINS: ${{ secrets.ACCOUNT_3_DOMAINS }}
+        run: python renew.py
+      
+      - name: Upload screenshot on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: error-screenshots
+          path: ./*.png
