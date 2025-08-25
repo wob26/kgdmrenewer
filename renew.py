@@ -6,23 +6,22 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
 from selenium.webdriver.chrome.options import Options
-# 【新增】导入 Service 和 ChromeDriverManager
 from selenium.webdriver.chrome.service import Service as ChromeService
 from webdriver_manager.chrome import ChromeDriverManager
 
 def setup_driver():
-    """【已修改】使用 webdriver-manager 配置并返回一个无头模式的 Chrome WebDriver"""
+    """【网络修复】使用 webdriver-manager 并禁用SSL验证来解决网络问题"""
+    # 【关键修复】通过设置环境变量禁用SSL证书验证，解决在GitHub Actions中的网络问题
+    os.environ['WDM_SSL_VERIFY'] = '0'
+
     chrome_options = Options()
-    # 使用 --headless=new 是更现代的无头模式标志
     chrome_options.add_argument("--headless=new")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
-    # 增加 --disable-gpu 选项，有时在Linux服务器上是必需的
     chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("--window-size=1920,1080")
     
-    # 【核心修改】使用 webdriver-manager 自动安装并配置与浏览器匹配的驱动
-    # 它会检测到我们安装的Chrome 114，并下载正确的驱动程序
+    # 使用 webdriver-manager 自动安装并配置与浏览器匹配的驱动
     service = ChromeService(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=chrome_options)
     return driver
