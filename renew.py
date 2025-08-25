@@ -27,54 +27,65 @@ def renew_account_domains(account_num, username, password, domains):
     driver = setup_driver()
     try:
         # 1. 登录
-        print(f"[账户 {account_num}] 正在打开登录页面...")
-        driver.get("https://register.us.kg/auth/login")
+        login_url = "https://dash.domain.digitalplat.org/auth/login"
+        print(f"[账户 {account_num}] 正在打开登录页面: {login_url}...")
+        driver.get(login_url)
         wait = WebDriverWait(driver, 20)
         
         wait.until(EC.presence_of_element_located((By.NAME, "email"))).send_keys(username)
         driver.find_element(By.NAME, "password").send_keys(password)
         driver.find_element(By.XPATH, "//button[@type='submit']").click()
         
-        # 等待登录成功后的页面元素，例如“Dashboard”链接
         wait.until(EC.presence_of_element_located((By.PARTIAL_LINK_TEXT, "Dashboard")))
         print(f"[账户 {account_num}] 登录成功。")
 
-        # 2. 导航到域名列表页面
-        driver.get("https://register.us.kg/panel/domains")
-        wait.until(EC.presence_of_element_located((By.TAG_NAME, "table"))) # 等待域名表格加载
-
-        # 3. 循环续订每个域名
+        # 2. 循环续订每个域名
         domain_list = [d.strip() for d in domains.split(',')]
+        domains_panel_url = "https://dash.domain.digitalplat.org/panel/domains"
+
         for domain in domain_list:
             print(f"  -> 正在处理域名: {domain}...")
             try:
-                # 找到包含特定域名的那一行，然后在那一行里找到续期链接
-                renew_link_xpath = f"//tr[contains(., '{domain}')]//a[contains(@href, '/renew/')]"
-                renew_link = wait.until(EC.element_to_be_clickable((By.XPATH, renew_link_xpath)))
+                # 3. 导航到域名列表页面
+                print(f"     导航至域名列表...")
+                driver.get(domains_panel_url)
                 
-                print(f"     找到续期链接，正在点击...")
-                renew_link.click()
+                # 4. 找到并点击特定域名的 "Manage" 链接
+                manage_link_xpath = f"//tr[contains(., '{domain}')]//a[contains(@href, 'panel/manage')]"
+                manage_link = wait.until(EC.element_to_be_clickable((By.XPATH, manage_link_xpath)))
+                print(f"     找到 {domain} 的管理链接，正在点击...")
+                manage_link.click()
+
+                # 5. 【关键步骤】在管理页面上，首先点击 "Renew" 标签页按钮
+                renew_tab_button_xpath = "//button[contains(@class, 'tab-btn') and normalize-space()='Renew']"
+                renew_tab_button = wait.until(EC.element_to_be_clickable((By.XPATH, renew_tab_button_xpath)))
+                print(f"     找到 'Renew' 标签页按钮，正在点击...")
+                renew_tab_button.click()
                 
-                # 在新页面点击最终的确认续期按钮
-                confirm_button_xpath = "//button[@type='submit' and contains(text(), 'Renew')]"
-                confirm_button = wait.until(EC.element_to_be_clickable((By.XPATH, confirm_button_xpath)))
-                print(f"     点击确认按钮...")
-                confirm_button.click()
-                
-                # 检查成功提示
-                success_message_xpath = "//*[contains(text(), 'successfully renewed') or contains(text(), 'Domain renewed')]"
+                # 等待一小会儿，确保标签页内容加载完毕
+                time.sleep(1)
+
+                # 6. 点击 "Free Renewal" 按钮
+                free_renewal_button_xpath = "//button[contains(text(), 'Free Renewal (Available if less than 180 days left)')]"
+                free_renewal_button = wait.until(EC.element_to_be_clickable((By.XPATH, free_renewal_button_xpath)))
+                print(f"     找到 'Free Renewal' 按钮，正在点击...")
+                free_renewal_button.click()
+
+                # 7. 在最终确认页面上，点击提交按钮
+                final_confirm_button_xpath = "//button[@type='submit']"
+                final_confirm_button = wait.until(EC.element_to_be_clickable((By.XPATH, final_confirm_button_xpath)))
+                print(f"     找到最终确认按钮，正在点击...")
+                final_confirm_button.click()
+
+                # 8. 检查成功提示
+                success_message_xpath = "//*[contains(text(), 'Success') or contains(text(), 'successfully') or contains(text(), 'renewed')]"
                 wait.until(EC.presence_of_element_located((By.XPATH, success_message_xpath)))
                 print(f"     ✅ 域名 {domain} 续期成功！")
 
-                # 返回域名列表页面以继续处理下一个域名
-                driver.get("https://register.us.kg/panel/domains")
-                wait.until(EC.presence_of_element_located((By.TAG_NAME, "table")))
-
-            except (TimeoutException, NoSuchElementException) as e:
-                print(f"     ❌ 域名 {domain} 续期失败或无需续期。可能原因：续期按钮不存在（未到时间或已续期）。错误: {e}")
-                # 出错后也要返回域名列表，以防万一
-                driver.get("https://register.us.kg/panel/domains")
-                continue # 继续下一个域名
+            except (TimeoutException, NoSuchElementException):
+                print(f"     ❌ 域名 {domain} 续期失败或无需续期。可能原因：未到续期时间或页面结构已改变。")
+                driver.save_screenshot(f"error_{domain}.png")
+                continue # 继续处理下一个域名
 
     except Exception as e:
         print(f"处理账户 {username} 时发生严重错误: {e}")
@@ -87,7 +98,6 @@ def renew_account_domains(account_num, username, password, domains):
 if __name__ == "__main__":
     account_index = 1
     while True:
-        # 动态检查是否存在 ACCOUNT_1_USERNAME, ACCOUNT_2_USERNAME 等环境变量
         username = os.environ.get(f'ACCOUNT_{account_index}_USERNAME')
         password = os.environ.get(f'ACCOUNT_{account_index}_PASSWORD')
         domains = os.environ.get(f'ACCOUNT_{account_index}_DOMAINS')
@@ -96,7 +106,6 @@ if __name__ == "__main__":
             renew_account_domains(account_index, username, password, domains)
             account_index += 1
         else:
-            # 如果找不到下一个账户的配置，说明所有账户都已处理完毕
             if account_index == 1:
                 print("错误：未找到任何账户配置。请检查 GitHub Secrets 是否已正确设置 (例如 ACCOUNT_1_USERNAME)。")
             break
