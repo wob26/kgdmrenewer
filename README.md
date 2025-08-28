@@ -39,7 +39,7 @@
 
 **为您的第一个账户添加：**
 *   `ACCOUNT_1_USERNAME`:
-    *   值: `1756467390@qq.com`
+    *   值: `512xxx@qq.com`
 *   `ACCOUNT_1_PASSWORD`:
     *   值: 该账户在 `digitalplat.org` 的登录密码。
 *   `ACCOUNT_1_DOMAINS`:
@@ -48,7 +48,7 @@
 
 **为您的第二个账户添加：**
 *   `ACCOUNT_2_USERNAME`:
-    *   值: `1510572948@qq.com`
+    *   值: `214xxx@qq.com`
 *   `ACCOUNT_2_PASSWORD`:
     *   值: 该账户的密码。
 *   `ACCOUNT_2_DOMAINS`:
