@@ -3,6 +3,7 @@
 """
 DigitalPlat 域名自动续期脚本
 适配新版 DigitalPlat Domain Dashboard (2025年1月版本)
+支持两步登录流程: 邮箱 -> Next -> 密码 -> Login
 """
 
 import os
@@ -78,68 +79,195 @@ def wait_and_find_element(driver, by, value, timeout=20, clickable=False):
 def login_account(driver, account_num, username, password):
     """
     登录到 DigitalPlat 账户
+    采用两步登录流程:
+    1. 输入邮箱 -> 点击 Next
+    2. 输入密码 -> 点击 Login
     """
     try:
         login_url = "https://dash.domain.digitalplat.org/auth/login"
         print(f"[账户 {account_num}] 正在打开登录页面: {login_url}")
         driver.get(login_url)
-        time.sleep(3)
+        time.sleep(4)
         
-        # 输入用户名/邮箱 (尝试多个可能的字段名)
-        print(f"[账户 {account_num}] 正在输入用户名...")
-        username_field = None
-        for field_name in ['email', 'username', 'user']:
-            username_field = wait_and_find_element(driver, By.NAME, field_name, timeout=5)
-            if username_field:
+        # ========== 第一步: 输入邮箱 ==========
+        print(f"[账户 {account_num}] 步骤1: 正在输入邮箱...")
+        email_field = None
+        
+        # 尝试多种方式定位邮箱输入框
+        email_selectors = [
+            (By.XPATH, "//input[@placeholder='E-Mail']"),
+            (By.XPATH, "//input[contains(@placeholder, 'E-Mail')]"),
+            (By.XPATH, "//input[contains(@placeholder, 'mail')]"),
+            (By.XPATH, "//input[@type='email']"),
+            (By.NAME, "email"),
+            (By.ID, "email"),
+            (By.CSS_SELECTOR, "input[type='email']"),
+            (By.CSS_SELECTOR, "input[placeholder*='mail' i]"),
+            (By.XPATH, "//input[@name='identifier']"),
+        ]
+        
+        for by, value in email_selectors:
+            email_field = wait_and_find_element(driver, by, value, timeout=5)
+            if email_field:
+                print(f"[账户 {account_num}] ✓ 找到邮箱输入框")
                 break
         
-        if not username_field:
-            # 如果按name找不到,尝试按type找
-            username_field = wait_and_find_element(driver, By.CSS_SELECTOR, "input[type='text'], input[type='email']", timeout=5)
-        
-        if not username_field:
-            print(f"❌ [账户 {account_num}] 未找到用户名输入框")
+        if not email_field:
+            print(f"❌ [账户 {account_num}] 未找到邮箱输入框")
+            # 保存截图用于调试
+            try:
+                driver.save_screenshot(f"login_step1_failed_account_{account_num}.png")
+                print(f"[账户 {account_num}] 已保存截图")
+            except:
+                pass
             return False
         
-        username_field.clear()
-        username_field.send_keys(username)
-        time.sleep(1)
+        email_field.clear()
+        email_field.send_keys(username)
+        time.sleep(1.5)
         
-        # 输入密码
-        print(f"[账户 {account_num}] 正在输入密码...")
-        password_field = wait_and_find_element(driver, By.NAME, "password", timeout=10)
-        if not password_field:
-            password_field = wait_and_find_element(driver, By.CSS_SELECTOR, "input[type='password']", timeout=5)
+        # ========== 第二步: 点击 "Next" 按钮 ==========
+        print(f"[账户 {account_num}] 步骤2: 正在点击 Next 按钮...")
+        next_button = None
+        
+        next_selectors = [
+            (By.XPATH, "//button[contains(text(), 'Next')]"),
+            (By.XPATH, "//button[normalize-space()='Next']"),
+            (By.XPATH, "//button[@type='submit' and contains(text(), 'Next')]"),
+            (By.XPATH, "//input[@type='submit' and @value='Next']"),
+            (By.CSS_SELECTOR, "button[type='submit']"),
+            (By.XPATH, "//button[contains(@class, 'submit')]"),
+        ]
+        
+        for by, value in next_selectors:
+            next_button = wait_and_find_element(driver, by, value, timeout=5, clickable=True)
+            if next_button:
+                # 验证按钮文本是否包含 Next
+                button_text = next_button.text.strip()
+                if 'Next' in button_text or button_text == '' or 'submit' in next_button.get_attribute('type').lower():
+                    print(f"[账户 {account_num}] ✓ 找到 Next 按钮")
+                    break
+                else:
+                    next_button = None
+        
+        if not next_button:
+            print(f"❌ [账户 {account_num}] 未找到 Next 按钮")
+            try:
+                driver.save_screenshot(f"login_step2_failed_account_{account_num}.png")
+            except:
+                pass
+            return False
+        
+        next_button.click()
+        time.sleep(4)
+        
+        # ========== 第三步: 输入密码 ==========
+        print(f"[账户 {account_num}] 步骤3: 正在输入密码...")
+        password_field = None
+        
+        password_selectors = [
+            (By.XPATH, "//input[@placeholder='Password']"),
+            (By.XPATH, "//input[@type='password']"),
+            (By.NAME, "password"),
+            (By.ID, "password"),
+            (By.CSS_SELECTOR, "input[type='password']"),
+        ]
+        
+        for by, value in password_selectors:
+            password_field = wait_and_find_element(driver, by, value, timeout=5)
+            if password_field:
+                print(f"[账户 {account_num}] ✓ 找到密码输入框")
+                break
         
         if not password_field:
             print(f"❌ [账户 {account_num}] 未找到密码输入框")
+            try:
+                driver.save_screenshot(f"login_step3_failed_account_{account_num}.png")
+            except:
+                pass
             return False
         
         password_field.clear()
         password_field.send_keys(password)
-        time.sleep(1)
+        time.sleep(1.5)
         
-        # 点击登录按钮
-        print(f"[账户 {account_num}] 正在点击登录按钮...")
-        login_button = wait_and_find_element(driver, By.XPATH, "//button[@type='submit']", timeout=10, clickable=True)
+        # ========== 第四步: 点击 "Login" 按钮 ==========
+        print(f"[账户 {account_num}] 步骤4: 正在点击 Login 按钮...")
+        login_button = None
+        
+        login_selectors = [
+            (By.XPATH, "//button[contains(text(), 'Login')]"),
+            (By.XPATH, "//button[normalize-space()='Login']"),
+            (By.XPATH, "//button[@type='submit' and contains(text(), 'Login')]"),
+            (By.XPATH, "//input[@type='submit' and @value='Login']"),
+            (By.XPATH, "//button[@type='submit']"),
+            (By.CSS_SELECTOR, "button[type='submit']"),
+        ]
+        
+        for by, value in login_selectors:
+            login_button = wait_and_find_element(driver, by, value, timeout=5, clickable=True)
+            if login_button:
+                button_text = login_button.text.strip()
+                if 'Login' in button_text or button_text == '' or 'submit' in login_button.get_attribute('type').lower():
+                    print(f"[账户 {account_num}] ✓ 找到 Login 按钮")
+                    break
+                else:
+                    login_button = None
+        
         if not login_button:
-            print(f"❌ [账户 {account_num}] 未找到登录按钮")
+            print(f"❌ [账户 {account_num}] 未找到 Login 按钮")
+            try:
+                driver.save_screenshot(f"login_step4_failed_account_{account_num}.png")
+            except:
+                pass
             return False
         
         login_button.click()
-        time.sleep(5)
+        time.sleep(6)
         
-        # 验证登录是否成功
+        # ========== 第五步: 验证登录是否成功 ==========
+        print(f"[账户 {account_num}] 步骤5: 验证登录状态...")
         current_url = driver.current_url
-        if "login" not in current_url.lower() or "dashboard" in current_url.lower() or "panel" in current_url.lower():
-            print(f"✅ [账户 {account_num}] 登录成功!")
+        
+        # 检查URL是否跳转到仪表板或其他已登录页面
+        if "login" not in current_url.lower():
+            print(f"✅ [账户 {account_num}] 登录成功! 当前页面: {current_url}")
+            return True
+        
+        # 检查是否还在登录页面（可能登录失败）
+        if "login" in current_url.lower():
+            # 检查是否有错误消息
+            try:
+                error_elements = driver.find_elements(By.XPATH, "//*[contains(text(), 'Invalid') or contains(text(), 'incorrect') or contains(text(), 'wrong') or contains(text(), 'error')]")
+                if error_elements:
+                    print(f"❌ [账户 {account_num}] 登录失败: 用户名或密码错误")
+                else:
+                    print(f"❌ [账户 {account_num}] 登录失败: 仍在登录页面")
+            except:
+                print(f"❌ [账户 {account_num}] 登录失败: 仍在登录页面")
+            
+            try:
+                driver.save_screenshot(f"login_failed_final_account_{account_num}.png")
+            except:
+                pass
+            return False
+        
+        # 如果URL不确定，再等一会儿看看
+        time.sleep(3)
+        current_url = driver.current_url
+        if "login" not in current_url.lower():
+            print(f"✅ [账户 {account_num}] 登录成功! 当前页面: {current_url}")
             return True
         else:
-            print(f"❌ [账户 {account_num}] 登录失败,当前URL: {current_url}")
+            print(f"❌ [账户 {account_num}] 登录失败，当前URL: {current_url}")
             return False
             
     except Exception as e:
         print(f"❌ [账户 {account_num}] 登录过程出错: {e}")
+        try:
+            driver.save_screenshot(f"login_exception_account_{account_num}.png")
+        except:
+            pass
         return False
 
 def renew_single_domain(driver, account_num, domain):
@@ -164,7 +292,8 @@ def renew_single_domain(driver, account_num, domain):
             "//button[contains(@class, 'tab') and contains(text(), 'Renew')]",
             "//a[contains(text(), 'Renew')]",
             "//*[contains(@class, 'tab-button') and contains(text(), 'Renew')]",
-            "//*[@role='tab' and contains(text(), 'Renew')]"
+            "//*[@role='tab' and contains(text(), 'Renew')]",
+            "//button[normalize-space()='Renew']",
         ]
         
         for selector in selectors:
@@ -174,6 +303,10 @@ def renew_single_domain(driver, account_num, domain):
         
         if not renew_button:
             print(f"  ⚠️ [域名: {domain}] 未找到 Renew 标签按钮")
+            try:
+                driver.save_screenshot(f"renew_tab_not_found_{domain}.png")
+            except:
+                pass
             return False
         
         print(f"  [域名: {domain}] 正在点击 Renew 标签...")
@@ -190,7 +323,8 @@ def renew_single_domain(driver, account_num, domain):
             "//button[contains(text(), 'Request free renewal')]",
             "//button[contains(text(), 'Free renewal')]",
             "//button[contains(text(), 'Free Renewal')]",
-            "//*[contains(@class, 'button') and contains(text(), 'Request')]"
+            "//*[contains(@class, 'button') and contains(text(), 'Request')]",
+            "//button[contains(., 'Request') and contains(., 'free')]",
         ]
         
         for selector in selectors:
@@ -206,6 +340,10 @@ def renew_single_domain(driver, account_num, domain):
                 return False
             else:
                 print(f"  ⚠️ [域名: {domain}] 未找到 Request free renewal 按钮")
+                try:
+                    driver.save_screenshot(f"renewal_button_not_found_{domain}.png")
+                except:
+                    pass
                 return False
         
         print(f"  [域名: {domain}] 正在点击 Request free renewal 按钮...")
@@ -215,7 +353,6 @@ def renew_single_domain(driver, account_num, domain):
         time.sleep(4)
         
         # 步骤3: 检查是否需要最终确认
-        # 有些情况下点击后会弹出确认对话框或跳转到确认页面
         try:
             confirm_button = wait_and_find_element(driver, By.XPATH, "//button[@type='submit' or contains(text(), 'Confirm') or contains(text(), 'Yes')]", timeout=5, clickable=True)
             if confirm_button:
@@ -223,7 +360,7 @@ def renew_single_domain(driver, account_num, domain):
                 confirm_button.click()
                 time.sleep(3)
         except:
-            pass  # 如果没有确认按钮,直接继续
+            pass
         
         # 步骤4: 验证续期是否成功
         time.sleep(2)
@@ -240,7 +377,6 @@ def renew_single_domain(driver, account_num, domain):
             print(f"  ✅ [域名: {domain}] 续期成功!")
             return True
         else:
-            # 检查是否有错误信息
             if "error" in page_source or "fail" in page_source:
                 print(f"  ❌ [域名: {domain}] 续期失败,页面显示错误")
             else:
@@ -249,6 +385,10 @@ def renew_single_domain(driver, account_num, domain):
             
     except Exception as e:
         print(f"  ❌ [域名: {domain}] 续期过程出错: {e}")
+        try:
+            driver.save_screenshot(f"renew_exception_{domain}.png")
+        except:
+            pass
         return False
 
 def renew_account_domains(account_num, username, password, domains):
@@ -284,23 +424,18 @@ def renew_account_domains(account_num, username, password, domains):
             print(f"\n[账户 {account_num}] 正在处理第 {i}/{len(domain_list)} 个域名: {domain}")
             if renew_single_domain(driver, account_num, domain):
                 success_count += 1
-            time.sleep(2)  # 域名之间间隔
+            time.sleep(2)
         
         print(f"\n[账户 {account_num}] 处理完毕: 成功 {success_count}/{len(domain_list)} 个域名")
         
     except WebDriverException as e:
         print(f"❌ [账户 {account_num}] 浏览器驱动错误: {e}")
-        print("提示: 这可能是Chrome版本不兼容导致的,请检查workflow配置中的Chrome版本")
+        print("提示: 这可能是Chrome版本不兼容导致的")
     except Exception as e:
         print(f"❌ [账户 {account_num}] 处理过程发生严重错误: {e}")
     finally:
         if driver:
             try:
-                # 保存错误截图(如果有错误)
-                try:
-                    driver.save_screenshot(f"account_{account_num}_final.png")
-                except:
-                    pass
                 driver.quit()
                 print(f"[账户 {account_num}] 浏览器已关闭")
             except:
@@ -312,7 +447,7 @@ def main():
     """
     print("="*60)
     print("DigitalPlat 域名自动续期脚本")
-    print("适配版本: 2025年1月")
+    print("适配版本: 2025年1月 (支持两步登录)")
     print("="*60)
     
     account_index = 1
@@ -337,7 +472,7 @@ def main():
             if account_index == 1:
                 print("\n❌ 错误: 未找到任何账户配置")
                 print("请在 GitHub Secrets 中添加以下变量:")
-                print("  ACCOUNT_1_USERNAME: 第一个账户的用户名")
+                print("  ACCOUNT_1_USERNAME: 第一个账户的邮箱")
                 print("  ACCOUNT_1_PASSWORD: 第一个账户的密码")
                 print("  ACCOUNT_1_DOMAINS: 第一个账户的域名列表(用逗号分隔)")
                 print("\n如有多个账户,继续添加 ACCOUNT_2_USERNAME, ACCOUNT_2_PASSWORD 等...")
