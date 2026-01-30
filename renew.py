@@ -10,39 +10,34 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
 def get_chrome_version():
-    """获取 GitHub Actions 环境中 Chrome 的主版本号"""
     try:
         output = subprocess.check_output(['google-chrome', '--version']).decode('utf-8')
-        version = output.strip().split()[-1].split('.')[0]
-        print(f"🔎 检测到环境 Chrome 版本: {version}")
-        return int(version)
-    except Exception:
+        return int(output.strip().split()[-1].split('.')[0])
+    except:
         return None
 
 def setup_driver():
-    """创建浏览器，强制同步版本号"""
     options = uc.ChromeOptions()
-    options.add_argument('--headless')
+    options.add_argument('--headless=new')
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
-    options.add_argument('--disable-gpu')
+    # 增加反爬指纹伪装
+    options.add_argument('--disable-blink-features=AutomationControlled')
     
     version = get_chrome_version()
-    try:
-        # 强制要求 uc 使用和系统一致的主版本号，防止 144 和 145 这种错位
-        driver = uc.Chrome(options=options, version_main=version)
-        driver.set_page_load_timeout(60)
-        return driver
-    except Exception as e:
-        print(f"❌ 浏览器启动失败: {e}")
-        # 如果还是失败，尝试不带版本号的保底方案
-        return uc.Chrome(options=options)
+    driver = uc.Chrome(options=options, version_main=version)
+    driver.set_page_load_timeout(60)
+    return driver
 
-def wait_and_click(driver, xpath, timeout=20):
-    """更强力的点击逻辑"""
+def save_debug_screenshot(driver, name):
+    filename = f"debug_{name}.png"
+    driver.save_screenshot(filename)
+    print(f"📸 截图已保存: {filename}")
+
+def wait_and_click(driver, selector, by=By.XPATH, timeout=20):
     try:
         element = WebDriverWait(driver, timeout).until(
-            EC.element_to_be_clickable((By.XPATH, xpath))
+            EC.element_to_be_clickable((by, selector))
         )
         driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", element)
         time.sleep(1)
@@ -51,84 +46,92 @@ def wait_and_click(driver, xpath, timeout=20):
     except:
         return False
 
-def login_account(driver, username, password):
-    """针对新的 DigitalPlat 登录页适配"""
+def login_account(driver, username, password, acc_idx):
     try:
+        print("🌐 正在访问登录页...")
         driver.get("https://dash.domain.digitalplat.org/auth/login")
-        print("⏳ 等待登录页面加载...")
-        time.sleep(10) # 留足时间过 Cloudflare
         
-        # 寻找 Email 输入框
+        # --- 步骤 1: 邮箱 ---
+        print("📧 正在输入邮箱...")
+        # 使用你截图中的 id="email"
         email_field = WebDriverWait(driver, 30).until(
-            EC.presence_of_element_located((By.NAME, "email"))
+            EC.presence_of_element_located((By.ID, "email"))
         )
+        email_field.clear()
         email_field.send_keys(username)
         
-        # 点击 Next (可能是 button 也可能是包含文字的元素)
-        wait_and_click(driver, "//button[contains(., 'Next')]")
+        # 点击 Next 按钮
+        wait_and_click(driver, "//button[contains(text(), 'Next')]")
         time.sleep(3)
         
-        # 寻找密码框
-        pwd_field = WebDriverWait(driver, 30).until(
-            EC.presence_of_element_located((By.NAME, "password"))
+        # --- 步骤 2: 密码 ---
+        print("🔑 正在输入密码...")
+        # 等待密码框 id="password" 出现
+        pwd_field = WebDriverWait(driver, 20).until(
+            EC.presence_of_element_located((By.ID, "password"))
         )
+        pwd_field.clear()
         pwd_field.send_keys(password)
         
-        # 点击 Login
-        wait_and_click(driver, "//button[contains(., 'Login')]")
+        # --- 步骤 3: 处理验证码 ---
+        # 截图显示有 Cloudflare Turnstile 验证码
+        print("🛡️ 检测验证码状态...")
+        time.sleep(5) # 给验证码一点加载时间
+        
+        # 尝试点击 Login 按钮
+        # 截图显示该按钮没有 ID，但有 class="btn-primary" 和文字 "Login"
+        login_btn_xpath = "//button[contains(text(), 'Login')]"
+        
+        print("🚀 尝试登录...")
+        if not wait_and_click(driver, login_btn_xpath):
+            save_debug_screenshot(driver, f"acc{acc_idx}_no_login_btn")
+            return False
+
+        # 等待跳转
         time.sleep(10)
         
-        return "auth/login" not in driver.current_url
+        if "login" not in driver.current_url.lower():
+            return True
+        else:
+            print("❌ 登录未成功，可能卡在验证码环节")
+            save_debug_screenshot(driver, f"acc{acc_idx}_stuck_login")
+            return False
+            
     except Exception as e:
-        print(f"❌ 登录出错: {e}")
+        print(f"❌ 登录过程发生错误: {e}")
+        save_debug_screenshot(driver, f"acc{acc_idx}_error")
         return False
 
 def renew_domain(driver, domain):
-    """点击流程: Renew -> Request free renewal"""
     try:
-        # 直接跳到该域名的管理页
+        # 按照你描述的链接格式直接访问
         url = f"https://dash.domain.digitalplat.org/panel/manager/{domain}"
-        print(f"🌐 访问管理页: {domain}")
+        print(f"🔎 正在处理域名: {domain}")
         driver.get(url)
         time.sleep(8)
         
-        # 1. 点击 Renew 按钮（可能是面板上的一个页签或按钮）
-        print(f"🔘 尝试寻找并点击 Renew 按钮...")
-        # 尝试多种可能的 XPath
-        renew_xpaths = [
-            "//button[contains(., 'Renew')]",
-            "//a[contains(., 'Renew')]",
-            "//span[contains(text(), 'Renew')]/.."
-        ]
-        
-        found_renew = False
-        for xpath in renew_xpaths:
-            if wait_and_click(driver, xpath, timeout=10):
-                found_renew = True
-                break
-        
-        if not found_renew:
-            print("⚠️ 未找到 Renew 按钮，可能页面结构已变或权限问题")
+        # 第一步：点击 Renew 按钮
+        print("  - 寻找 Renew 按钮...")
+        # 适配新版 UI 结构
+        renew_xpath = "//button[contains(., 'Renew')] | //a[contains(., 'Renew')]"
+        if not wait_and_click(driver, renew_xpath):
+            print(f"  ⚠️ 未找到 Renew 按钮，可能已失效")
             return False
             
-        time.sleep(5)
+        time.sleep(4)
         
-        # 2. 点击 Request free renewal 按钮
-        print(f"🚀 尝试点击 Request free renewal...")
+        # 第二步：点击 Request free renewal
+        print("  - 点击 Request free renewal...")
         request_xpath = "//button[contains(., 'Request free renewal')]"
-        if wait_and_click(driver, request_xpath, timeout=15):
-            print(f"✅ {domain} 续期请求已发送")
-            time.sleep(5)
+        if wait_and_click(driver, request_xpath):
+            print(f"  ✅ {domain} 续期请求成功")
             return True
         else:
-            if "180 days" in driver.page_source:
-                print(f"ℹ️ {domain} 还没到续期时间(需少于180天)")
-            else:
-                print(f"❌ 未找到确认续期的按钮")
+            print(f"  ℹ️ {domain} 暂不可续期")
             return False
             
     except Exception as e:
-        print(f"❌ {domain} 处理异常: {e}")
+        print(f"❌ {domain} 续期失败: {e}")
         return False
 
 def main():
@@ -138,23 +141,20 @@ def main():
         pwd = os.environ.get(f'ACCOUNT_{idx}_PASSWORD')
         doms = os.environ.get(f'ACCOUNT_{idx}_DOMAINS', '')
         
-        if not user or not pwd:
-            break
+        if not user or not pwd: break
             
-        print(f"\n{'='*40}\n账户 {idx}: {user}\n{'='*40}")
+        print(f"\n{'='*50}\n账户 {idx}: {user}\n{'='*50}")
         driver = None
         try:
             driver = setup_driver()
-            if login_account(driver, user, pwd):
-                print("🔓 登录成功，开始检查域名")
-                domain_list = [d.strip() for d in doms.split(',') if d.strip()]
-                for d in domain_list:
+            if login_account(driver, user, pwd, idx):
+                print("🔓 登录成功！")
+                for d in [d.strip() for d in doms.split(',') if d.strip()]:
                     renew_domain(driver, d)
             else:
-                print("❌ 登录失败，请检查账号密码或 Secret 配置")
+                print("⏭️ 跳过当前账户")
         finally:
-            if driver:
-                driver.quit()
+            if driver: driver.quit()
         idx += 1
         time.sleep(5)
 
