@@ -2,18 +2,14 @@ name: DPDNS Domain Auto-Renew
 
 on:
   schedule:
-    # 每月1号和15号 UTC 3:00运行
     - cron: '0 3 1,15 * *'
-  
   workflow_dispatch:
 
 jobs:
   renew:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Set up Python
@@ -26,34 +22,20 @@ jobs:
           python -m pip install --upgrade pip
           pip install undetected-chromedriver selenium
 
-      - name: Setup Chrome
-        uses: browser-actions/setup-chrome@v1
-        with:
-          chrome-version: stable
-      
       - name: Run renewal script
         env:
           ACCOUNT_1_USERNAME: ${{ secrets.ACCOUNT_1_USERNAME }}
           ACCOUNT_1_PASSWORD: ${{ secrets.ACCOUNT_1_PASSWORD }}
           ACCOUNT_1_DOMAINS: ${{ secrets.ACCOUNT_1_DOMAINS }}
-          
           ACCOUNT_2_USERNAME: ${{ secrets.ACCOUNT_2_USERNAME }}
           ACCOUNT_2_PASSWORD: ${{ secrets.ACCOUNT_2_PASSWORD }}
           ACCOUNT_2_DOMAINS: ${{ secrets.ACCOUNT_2_DOMAINS }}
-          
-          ACCOUNT_3_USERNAME: ${{ secrets.ACCOUNT_3_USERNAME }}
-          ACCOUNT_3_PASSWORD: ${{ secrets.ACCOUNT_3_PASSWORD }}
-          ACCOUNT_3_DOMAINS: ${{ secrets.ACCOUNT_3_DOMAINS }}
-          
-          ACCOUNT_4_USERNAME: ${{ secrets.ACCOUNT_4_USERNAME }}
-          ACCOUNT_4_PASSWORD: ${{ secrets.ACCOUNT_4_PASSWORD }}
-          ACCOUNT_4_DOMAINS: ${{ secrets.ACCOUNT_4_DOMAINS }}
+          # 如果有更多账户，继续在这里添加
         run: python renew.py
-      
-      - name: Upload screenshots on failure
+
+      - name: Upload screenshots
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: error-screenshots
           path: ./*.png
-          retention-days: 7
