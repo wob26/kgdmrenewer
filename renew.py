@@ -9,18 +9,19 @@ import undetected_chromedriver as uc
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, NoSuchElementException
+from selenium.webdriver.common.keys import Keys
 
 def get_chrome_version():
     """获取Chrome版本"""
     try:
         output = subprocess.check_output(['google-chrome', '--version']).decode('utf-8')
-        return int(output.strip().split()[-1].split('.')[0])
+        version_str = output.strip().split()[-1]
+        return int(version_str.split('.')[0])
     except:
         return 120  # 默认版本
 
 def setup_driver():
-    """设置浏览器驱动"""
+    """设置浏览器驱动 - 修复参数问题"""
     options = uc.ChromeOptions()
     
     # 基础选项
@@ -29,50 +30,69 @@ def setup_driver():
     options.add_argument('--disable-dev-shm-usage')
     options.add_argument('--disable-gpu')
     
-    # 反检测选项
+    # undetected_chromedriver 不需要 excludeSwitches 参数
+    # 只需要基本反检测参数
     options.add_argument('--disable-blink-features=AutomationControlled')
-    options.add_experimental_option("excludeSwitches", ["enable-automation", "enable-logging"])
-    options.add_experimental_option('useAutomationExtension', False)
     
     # 用户代理和窗口大小
     options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
     options.add_argument('--window-size=1920,1080')
+    options.add_argument('--start-maximized')
     
-    # 防止指纹识别
-    prefs = {
-        "credentials_enable_service": False,
-        "profile.password_manager_enabled": False,
-        "useAutomationExtension": False,
-        "excludeSwitches": ["enable-automation"]
-    }
-    options.add_experimental_option("prefs", prefs)
+    # 添加一些额外的参数来避免检测
+    options.add_argument('--disable-web-security')
+    options.add_argument('--allow-running-insecure-content')
+    options.add_argument('--disable-notifications')
+    options.add_argument('--disable-popup-blocking')
+    
+    # 语言设置
+    options.add_argument('--lang=en-US,en;q=0.9')
     
     try:
         version = get_chrome_version()
         print(f"🚀 使用 Chrome 版本: {version}")
         
+        # 使用 undetected_chromedriver 的简化配置
         driver = uc.Chrome(
             options=options,
             version_main=version,
-            driver_executable_path=None
+            headless=True,  # 确保 headless 模式
+            suppress_welcome=True
         )
         
-        # 隐藏WebDriver特征
-        driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {
-            'source': '''
-                Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
-                Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
-                Object.defineProperty(navigator, 'languages', {get: () => ['zh-CN', 'zh', 'en']});
-            '''
-        })
+        # 隐藏WebDriver特征 - 使用JavaScript方式
+        driver.execute_script("""
+            Object.defineProperty(navigator, 'webdriver', {
+                get: () => undefined
+            });
+            window.chrome = {
+                runtime: {},
+                loadTimes: function() {},
+                csi: function() {},
+                app: {}
+            };
+        """)
         
         driver.set_page_load_timeout(45)
         driver.set_script_timeout(30)
+        
         return driver
         
     except Exception as e:
         print(f"❌ 浏览器初始化失败: {e}")
-        raise
+        # 尝试更简单的配置
+        print("🔄 尝试简化配置...")
+        try:
+            options = uc.ChromeOptions()
+            options.add_argument('--headless=new')
+            options.add_argument('--no-sandbox')
+            options.add_argument('--disable-dev-shm-usage')
+            
+            driver = uc.Chrome(options=options)
+            return driver
+        except Exception as e2:
+            print(f"❌ 简化配置也失败: {e2}")
+            raise
 
 def save_screenshot(driver, name):
     """保存截图"""
@@ -89,14 +109,20 @@ def human_type(element, text):
     """模拟人类输入"""
     try:
         element.clear()
+        time.sleep(0.5)
         for char in text:
             element.send_keys(char)
-            time.sleep(random.uniform(0.05, 0.15))
-    except:
-        # 如果普通方式失败，使用JavaScript
-        from selenium.webdriver.common.keys import Keys
-        element.clear()
-        element.send_keys(text)
+            time.sleep(random.uniform(0.05, 0.12))
+        return True
+    except Exception as e:
+        print(f"⚠️ 输入失败，尝试JS方式: {e}")
+        try:
+            driver = element.parent
+            driver.execute_script(f"arguments[0].value = '{text}';", element)
+            driver.execute_script("arguments[0].dispatchEvent(new Event('input', { bubbles: true }));", element)
+            return True
+        except:
+            return False
 
 def wait_and_click(driver, selector, by=By.XPATH, timeout=15, description=""):
     """等待并点击元素"""
@@ -107,7 +133,7 @@ def wait_and_click(driver, selector, by=By.XPATH, timeout=15, description=""):
         
         # 滚动到元素
         driver.execute_script("arguments[0].scrollIntoView({behavior: 'smooth', block: 'center'});", element)
-        time.sleep(0.5 + random.random())
+        time.sleep(0.3 + random.random() * 0.3)
         
         # 尝试JavaScript点击
         try:
@@ -115,12 +141,12 @@ def wait_and_click(driver, selector, by=By.XPATH, timeout=15, description=""):
         except:
             element.click()
             
-        print(f"✅ 点击: {description or selector}")
-        time.sleep(1 + random.random())
+        print(f"✅ 点击: {description or selector[:50]}")
+        time.sleep(1 + random.random() * 0.5)
         return True
         
     except Exception as e:
-        print(f"⚠️ 点击失败 {description or selector}: {str(e)[:100]}")
+        print(f"⚠️ 点击失败 {description or selector[:50]}: {str(e)[:80]}")
         return False
 
 def find_element_multi_strategy(driver, selectors_list, timeout=10):
@@ -155,31 +181,42 @@ def login_account(driver, username, password, acc_idx):
             (By.NAME, "email"),
             (By.CSS_SELECTOR, "input[type='email']"),
             (By.XPATH, "//input[@type='email']"),
-            (By.CSS_SELECTOR, "input.email-input"),
+            (By.CSS_SELECTOR, "input[name='email']"),
         ]
         
-        email_field = find_element_multi_strategy(driver, email_selectors, 15)
+        email_field = find_element_multi_strategy(driver, email_selectors, 20)
         if not email_field:
             print("❌ 未找到邮箱输入框")
             save_screenshot(driver, f"acc{acc_idx}_no_email")
             return False
             
-        human_type(email_field, username)
-        time.sleep(1)
+        if not human_type(email_field, username):
+            print("❌ 邮箱输入失败")
+            return False
+            
+        time.sleep(1 + random.random())
         
         # 2. 点击Next按钮
         print("🔄 点击下一步...")
-        next_clicked = wait_and_click(driver, 
-            "//button[contains(text(), 'Next') or contains(text(), '下一步')]", 
-            description="Next按钮")
+        next_selectors = [
+            "//button[contains(text(), 'Next')]",
+            "//button[contains(text(), '下一步')]",
+            "//button[text()='Next']",
+            "//input[@type='submit']",
+            "//button[@type='submit']",
+        ]
         
-        if not next_clicked:
-            # 尝试按回车
+        clicked = False
+        for selector in next_selectors:
+            if wait_and_click(driver, selector, timeout=8, description="Next按钮"):
+                clicked = True
+                break
+                
+        if not clicked:
             print("⚠️ 尝试回车继续...")
-            from selenium.webdriver.common.keys import Keys
             email_field.send_keys(Keys.RETURN)
             
-        time.sleep(5 + random.random() * 3)
+        time.sleep(6 + random.random() * 2)
         save_screenshot(driver, f"acc{acc_idx}_after_email")
         
         # 3. 查找并输入密码
@@ -189,37 +226,48 @@ def login_account(driver, username, password, acc_idx):
             (By.NAME, "password"),
             (By.CSS_SELECTOR, "input[type='password']"),
             (By.XPATH, "//input[@type='password']"),
+            (By.CSS_SELECTOR, "input[name='password']"),
         ]
         
-        pwd_field = find_element_multi_strategy(driver, pwd_selectors, 15)
+        pwd_field = find_element_multi_strategy(driver, pwd_selectors, 20)
         if not pwd_field:
             print("❌ 未找到密码输入框")
             save_screenshot(driver, f"acc{acc_idx}_no_password")
             return False
             
-        human_type(pwd_field, password)
-        time.sleep(2)
+        if not human_type(pwd_field, password):
+            print("❌ 密码输入失败")
+            return False
+            
+        time.sleep(2 + random.random())
         
         # 4. 处理验证码（如果有）
         print("🛡️ 等待验证码...")
-        time.sleep(10)  # 给验证码足够时间加载
+        time.sleep(8)  # 给验证码足够时间加载
         save_screenshot(driver, f"acc{acc_idx}_before_login")
         
         # 5. 点击登录按钮
         print("🚀 尝试登录...")
-        login_clicked = wait_and_click(driver,
-            "//button[contains(text(), 'Login') or contains(text(), '登录') or @type='submit']",
-            timeout=20,
-            description="登录按钮")
-            
+        login_selectors = [
+            "//button[contains(text(), 'Login')]",
+            "//button[contains(text(), '登录')]",
+            "//button[@type='submit' and not(contains(text(), 'Next'))]",
+            "//input[@type='submit' and contains(@value, 'Login')]",
+            "//input[@type='submit' and contains(@value, '登录')]",
+        ]
+        
+        login_clicked = False
+        for selector in login_selectors:
+            if wait_and_click(driver, selector, timeout=15, description="登录按钮"):
+                login_clicked = True
+                break
+                
         if not login_clicked:
-            # 尝试在密码框按回车
             print("⚠️ 尝试回车登录...")
-            from selenium.webdriver.common.keys import Keys
             pwd_field.send_keys(Keys.RETURN)
             
         # 6. 等待登录完成
-        time.sleep(12 + random.random() * 3)
+        time.sleep(10 + random.random() * 3)
         save_screenshot(driver, f"acc{acc_idx}_after_login")
         
         # 7. 验证登录成功
@@ -228,13 +276,25 @@ def login_account(driver, username, password, acc_idx):
             print("✅ 登录成功！")
             return True
         else:
-            print("❌ 可能登录失败")
+            print("❌ 可能登录失败，当前URL:", driver.current_url)
             # 检查错误信息
             try:
-                error_elements = driver.find_elements(By.CSS_SELECTOR, ".error, .alert-danger, .text-danger, .alert")
-                for error in error_elements[:3]:  # 只看前3个
-                    if error.text.strip():
-                        print(f"⚠️ 页面提示: {error.text[:80]}")
+                error_selectors = [
+                    (By.CSS_SELECTOR, ".error"),
+                    (By.CSS_SELECTOR, ".alert-danger"),
+                    (By.CSS_SELECTOR, ".text-danger"),
+                    (By.CSS_SELECTOR, ".alert"),
+                    (By.XPATH, "//*[contains(text(), '错误') or contains(text(), 'Error') or contains(text(), '验证')]"),
+                ]
+                
+                for by, selector in error_selectors:
+                    try:
+                        errors = driver.find_elements(by, selector)
+                        for error in errors[:2]:
+                            if error.text.strip():
+                                print(f"⚠️ 页面提示: {error.text[:100]}")
+                    except:
+                        continue
             except:
                 pass
             return False
@@ -250,36 +310,79 @@ def renew_domain(driver, domain):
         print(f"\n🌐 处理域名: {domain}")
         url = f"https://dash.domain.digitalplat.org/panel/manager/{domain}"
         driver.get(url)
-        time.sleep(6 + random.random() * 2)
+        time.sleep(7 + random.random() * 2)
         
-        # 查找Renew按钮
-        renew_found = wait_and_click(driver,
-            "//button[contains(., 'Renew') or contains(., '续费')] | //a[contains(., 'Renew')]",
-            timeout=15,
-            description="Renew按钮")
-            
-        if not renew_found:
-            print(f"  ℹ️ {domain} 未找到Renew按钮")
-            return False
-            
-        time.sleep(4)
+        # 首先截图查看页面结构
+        save_screenshot(driver, f"domain_{domain.replace('.', '_')}_initial")
         
-        # 查找免费续期按钮
-        free_renew_found = wait_and_click(driver,
-            "//button[contains(., 'Request free renewal') or contains(., '免费续期')]",
+        # 根据你提供的HTML结构，找到Renew标签页
+        print("  📍 查找Renew标签页...")
+        
+        # 方法1: 直接点击Renew标签按钮
+        renew_tab_clicked = wait_and_click(driver,
+            "//button[contains(@class, 'tab-btn') and contains(., 'Renew')]",
             timeout=15,
-            description="免费续期按钮")
+            description="Renew标签")
             
-        if free_renew_found:
-            print(f"  ✅ {domain} 续期请求已发送")
+        if renew_tab_clicked:
+            print("  ✅ 已切换到Renew标签页")
             time.sleep(3)
-            return True
+            
+            # 现在查找Renew按钮
+            renew_btn_clicked = wait_and_click(driver,
+                "//button[contains(., 'Renew') and not(contains(@class, 'tab-btn'))]",
+                timeout=15,
+                description="Renew按钮")
+                
+            if renew_btn_clicked:
+                time.sleep(3)
+                
+                # 查找免费续期按钮
+                free_renew_clicked = wait_and_click(driver,
+                    "//button[contains(., 'Request free renewal') or contains(., '免费续期') or contains(., 'free renewal')]",
+                    timeout=15,
+                    description="免费续期按钮")
+                    
+                if free_renew_clicked:
+                    print(f"  ✅ {domain} 续期请求已发送")
+                    time.sleep(3)
+                    save_screenshot(driver, f"domain_{domain.replace('.', '_')}_success")
+                    return True
+                else:
+                    print(f"  ℹ️ {domain} 未找到免费续期按钮")
+            else:
+                print(f"  ℹ️ {domain} 未找到Renew按钮")
         else:
-            print(f"  ℹ️ {domain} 可能暂不支持免费续期")
-            return False
+            print(f"  ℹ️ {domain} 可能已经是Renew页面或标签结构不同")
+            
+            # 方法2: 直接在当前页面查找Renew按钮
+            renew_btn_clicked = wait_and_click(driver,
+                "//button[contains(., 'Renew')]",
+                timeout=10,
+                description="Renew按钮(直接)")
+                
+            if renew_btn_clicked:
+                time.sleep(3)
+                
+                # 查找免费续期按钮
+                free_renew_clicked = wait_and_click(driver,
+                    "//button[contains(., 'Request free renewal')]",
+                    timeout=10,
+                    description="免费续期按钮")
+                    
+                if free_renew_clicked:
+                    print(f"  ✅ {domain} 续期请求已发送")
+                    time.sleep(3)
+                    return True
+            
+            print(f"  ℹ️ {domain} 可能暂不支持续期")
+            
+        save_screenshot(driver, f"domain_{domain.replace('.', '_')}_end")
+        return False
             
     except Exception as e:
         print(f"❌ {domain} 处理失败: {str(e)[:100]}")
+        save_screenshot(driver, f"domain_{domain.replace('.', '_')}_error")
         return False
 
 def main():
