@@ -2,10 +2,9 @@ name: DPDNS Domain Auto-Renew
 
 on:
   schedule:
-    # 每月1号和15号的UTC时间 3:00 (北京时间 11:00) 运行
+    # 每月1号和15号 UTC 3:00运行
     - cron: '0 3 1,15 * *'
   
-  # 允许手动触发
   workflow_dispatch:
 
 jobs:
@@ -25,9 +24,8 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install selenium webdriver-manager
+          pip install undetected-chromedriver selenium
 
-      # 使用最新稳定版Chrome (移除了固定版本114,使用latest更兼容)
       - name: Setup Chrome
         uses: browser-actions/setup-chrome@v1
         with:
@@ -35,28 +33,24 @@ jobs:
       
       - name: Run renewal script
         env:
-          # 账户1配置
           ACCOUNT_1_USERNAME: ${{ secrets.ACCOUNT_1_USERNAME }}
           ACCOUNT_1_PASSWORD: ${{ secrets.ACCOUNT_1_PASSWORD }}
           ACCOUNT_1_DOMAINS: ${{ secrets.ACCOUNT_1_DOMAINS }}
           
-          # 账户2配置
           ACCOUNT_2_USERNAME: ${{ secrets.ACCOUNT_2_USERNAME }}
           ACCOUNT_2_PASSWORD: ${{ secrets.ACCOUNT_2_PASSWORD }}
           ACCOUNT_2_DOMAINS: ${{ secrets.ACCOUNT_2_DOMAINS }}
           
-          # 账户3配置 (可选)
           ACCOUNT_3_USERNAME: ${{ secrets.ACCOUNT_3_USERNAME }}
           ACCOUNT_3_PASSWORD: ${{ secrets.ACCOUNT_3_PASSWORD }}
           ACCOUNT_3_DOMAINS: ${{ secrets.ACCOUNT_3_DOMAINS }}
           
-          # 账户4配置 (可选)
           ACCOUNT_4_USERNAME: ${{ secrets.ACCOUNT_4_USERNAME }}
           ACCOUNT_4_PASSWORD: ${{ secrets.ACCOUNT_4_PASSWORD }}
           ACCOUNT_4_DOMAINS: ${{ secrets.ACCOUNT_4_DOMAINS }}
         run: python renew.py
       
-      - name: Upload screenshot on failure
+      - name: Upload screenshots on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
