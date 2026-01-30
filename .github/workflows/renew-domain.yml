@@ -20,7 +20,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install playwright cloudscraper requests
+          pip install playwright cloudscraper requests undetected-chromedriver selenium
           playwright install chromium
           playwright install-deps
 
@@ -38,7 +38,7 @@ jobs:
           ACCOUNT_2_PASSWORD: ${{ secrets.ACCOUNT_2_PASSWORD }}
           ACCOUNT_2_DOMAINS: ${{ secrets.ACCOUNT_2_DOMAINS }}
         run: |
-          xvfb-run --auto-serwnum --server-args="-screen 0 1920x1080x24" python renew.py
+          xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" python renew.py
         
       - name: Upload debug screenshots
         if: always()
