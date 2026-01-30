@@ -22,6 +22,12 @@ jobs:
           python -m pip install --upgrade pip
           pip install undetected-chromedriver selenium
 
+      # 强制确保环境里有 Chrome 稳定版
+      - name: Setup Chrome
+        uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: stable
+
       - name: Run renewal script
         env:
           ACCOUNT_1_USERNAME: ${{ secrets.ACCOUNT_1_USERNAME }}
@@ -30,12 +36,5 @@ jobs:
           ACCOUNT_2_USERNAME: ${{ secrets.ACCOUNT_2_USERNAME }}
           ACCOUNT_2_PASSWORD: ${{ secrets.ACCOUNT_2_PASSWORD }}
           ACCOUNT_2_DOMAINS: ${{ secrets.ACCOUNT_2_DOMAINS }}
-          # 如果有更多账户，继续在这里添加
+          # 如果有更多账号，请按格式继续添加
         run: python renew.py
-
-      - name: Upload screenshots
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: error-screenshots
-          path: ./*.png
