@@ -1,101 +1,189 @@
-# DPDNS Domain Auto-Renew with GitHub Actions 🚀
+# DigitalPlat 域名自动续期脚本 - 配置说明
 
-![Workflow Status](https://github.com/wob26/kgdmrenewer/actions/workflows/renew-domain.yml/badge.svg)
+## 📋 修复说明 (2025年1月)
 
-一份 **“一劳永逸”** 的解决方案，用于自动续期您在 [digitalplat.org](https://dash.domain.digitalplat.org/) 注册的免费 `.dpdns.org` 域名。告别手动续期的烦恼，让 GitHub Actions 成为您 7x24 小时的域名续期管家！
+### 主要修复内容:
+1. ✅ 修复了Chrome驱动崩溃问题 (改用stable版本代替114)
+2. ✅ 适配了新版DigitalPlat界面流程
+3. ✅ 增加了更多的元素定位方式,提高稳定性
+4. ✅ 优化了错误处理和日志输出
+5. ✅ 添加了续期窗口期检测 (180天)
 
-## ✨ 特性
-
--   ✅ **完全自动化**：设定好计划后，无需任何人工干预。
--   ✅ **多账户 & 多域名支持**：轻松管理多个账户下的任意数量域名。
--   ✅ **安全可靠**：利用 GitHub 的加密 Secrets 安全存储您的账户凭据，代码中不留痕迹。
--   ✅ **无需服务器**：所有任务均在 GitHub 的云端服务器上运行，零硬件成本。
--   ✅ **高度可定制**：通过简单的 `cron` 表达式自由设定续期检查的频率和时间。
--   ✅ **详尽的日志与错误报告**：每次运行都有完整的日志记录，并在出错时自动截屏，方便快速定位问题。
-
-## ⚙️ 工作原理
-
-本项目利用 [Python](https://www.python.org/) 和强大的浏览器自动化工具 [Selenium](https://www.selenium.dev/)，编写了一个能够模拟人工操作的脚本。该脚本被配置在 [GitHub Actions](https://github.com/features/actions) 工作流中，通过 `schedule` 事件定时触发。
-
-当预定时间到达时，GitHub Actions 会自动：
-1.  创建一个虚拟的 Ubuntu Linux 环境。
-2.  安装 Python、Chrome 浏览器和所有必要的依赖。
-3.  从您配置的 GitHub Secrets 中安全地读取账户信息。
-4.  执行 `renew.py` 脚本，该脚本会依次登录您的每个账户，并为您账户下的所有域名执行一整套续期操作。
-
-## 🚀 部署指南
-
-只需简单的四步，即可拥有属于您自己的域名续期机器人。
-
-### 第 1 步：创建您的代码仓库
-
-点击本页面右上角的 **Fork** 按钮，将此项目复制一份到您自己的 GitHub 账户下。
-
-### 第 2 步：配置您的账户机密 (最关键的一步！)
-
-进入您 Fork 后的仓库，点击 `Settings` > `Secrets and variables` > `Actions`。
-
-然后，点击 `New repository secret` 按钮，添加以下**所有**机密信息。请注意命名规则，这是脚本识别账户的关键。
-
-**为您的第一个账户添加：**
-*   `ACCOUNT_1_USERNAME`:
-    *   值: `512xxx@qq.com`
-*   `ACCOUNT_1_PASSWORD`:
-    *   值: 该账户在 `digitalplat.org` 的登录密码。
-*   `ACCOUNT_1_DOMAINS`:
-    *   值: 此账户下的所有域名，**用英文逗号隔开，不要有空格**。
-    *   例如: `domain-a.dpdns.org,domain-b.dpdns.org`
-
-**为您的第二个账户添加：**
-*   `ACCOUNT_2_USERNAME`:
-    *   值: `214xxx@qq.com`
-*   `ACCOUNT_2_PASSWORD`:
-    *   值: 该账户的密码。
-*   `ACCOUNT_2_DOMAINS`:
-    *   值: 此账户下的所有域名，同样用逗号隔开。
-    *   例如: `domain-c.dpdns.org,another.dpdns.org,wioscat.dpdns.org`
-
-> **提示**：如果您有更多账户，只需按照 `ACCOUNT_3_USERNAME`、`ACCOUNT_3_PASSWORD` 的格式继续添加即可，脚本会自动识别并处理。
-
-### 第 3 步：自定义执行计划 (可选)
-
-本项目默认在每年的**3月28日**和**4月28日**凌晨3点 (UTC时间) 自动运行。
-
-如果您想修改这个时间，请编辑 `.github/workflows/renew-domain.yml` 文件，找到 `cron` 表达式：
-
-```yaml
-  schedule:
-    # 格式: 分钟 小时 日 月份 星期
-    - cron: '0 3 28 3,4 *'
+### 新版续期流程:
+```
+登录 → 访问域名管理页面 → 点击"Renew"标签 → 点击"Request free renewal" → 确认 → 完成
 ```
 
-您可以根据自己的需求修改它。例如，修改为每月1号运行：`- cron: '0 3 1 * *'`。
+## 🚀 快速配置指南
 
-### 第 4 步：手动运行以验证配置
+### 第1步: 在GitHub仓库设置Secrets
 
-1.  进入仓库的 `Actions` 标签页。
-2.  在左侧选择 `DPDNS Domain Auto-Renew` 工作流。
-3.  在右侧，您会看到一个提示，点击 **`Run workflow`** 按钮。
-4.  在弹出的窗口中再次点击绿色的 **`Run workflow`** 按钮。
+进入你的GitHub仓库 → Settings → Secrets and variables → Actions → New repository secret
 
-等待几分钟，观察工作流的运行状态。如果最终显示一个**绿色的勾 ✅**，那么恭喜您，一切配置正确，您的自动化系统已成功部署！
+为每个账户添加以下3个Secrets:
 
-## 📂 项目文件结构
+#### 账户1 (必需):
+- `ACCOUNT_1_USERNAME`: 你的DigitalPlat用户名或邮箱
+- `ACCOUNT_1_PASSWORD`: 你的DigitalPlat密码
+- `ACCOUNT_1_DOMAINS`: 你要续期的域名列表 (用逗号分隔)
+
+**示例:**
+- ACCOUNT_1_USERNAME: `your.email@example.com`
+- ACCOUNT_1_PASSWORD: `your_password_here`
+- ACCOUNT_1_DOMAINS: `wiobr.dpdns.org,zhiqiao.dpdns.org`
+
+#### 账户2 (可选):
+- `ACCOUNT_2_USERNAME`: 第二个账户的用户名
+- `ACCOUNT_2_PASSWORD`: 第二个账户的密码
+- `ACCOUNT_2_DOMAINS`: 第二个账户的域名列表
+
+#### 更多账户:
+如需添加更多账户,继续添加 ACCOUNT_3_*, ACCOUNT_4_* 等,脚本会自动检测
+
+### 第2步: 替换项目文件
+
+1. 用新的 `renew.py` 替换你项目根目录的旧文件
+2. 用新的 `renew-domain.yml` 替换 `.github/workflows/` 目录下的旧文件
+
+### 第3步: 提交并推送
+
+```bash
+git add renew.py .github/workflows/renew-domain.yml
+git commit -m "修复域名续期脚本,适配新版DigitalPlat界面"
+git push
+```
+
+### 第4步: 测试运行
+
+1. 进入GitHub仓库 → Actions
+2. 选择 "DPDNS Domain Auto-Renew" workflow
+3. 点击 "Run workflow" → "Run workflow" 按钮
+4. 等待运行完成,查看日志
+
+## ⏰ 自动运行时间
+
+脚本会在以下时间自动运行:
+- 每月1号 UTC时间 3:00 (北京时间 11:00)
+- 每月15号 UTC时间 3:00 (北京时间 11:00)
+
+**注意:** 免费续期需要域名到期时间少于180天,所以建议:
+- 在域名到期前6个月(约180天)开始尝试续期
+- 每半个月检查一次,确保在续期窗口内能成功续期
+
+## 🔧 常见问题排查
+
+### Q1: 脚本运行失败,显示 "未找到任何账户配置"
+**解决:** 检查Secrets名称是否正确,必须是 `ACCOUNT_1_USERNAME` 而不是其他名称
+
+### Q2: 脚本显示 "域名不在免费续期窗口期内"
+**解决:** 这是正常情况,域名需要到期时间少于180天才能免费续期,请等待
+
+### Q3: Chrome驱动崩溃
+**解决:** 新版脚本已修复此问题,使用stable版Chrome
+
+### Q4: 登录失败
+**解决:** 
+- 检查用户名和密码是否正确
+- 确保账户没有被锁定
+- 查看Actions日志中的详细错误信息
+
+### Q5: 找不到Renew按钮
+**解决:** 
+- 新版脚本已增加多种定位方式
+- 如果仍然失败,可能是页面结构再次变化,需要更新脚本
+
+## 📝 域名列表格式
+
+多个域名用逗号分隔,例如:
+```
+domain1.dpdns.org,domain2.dpdns.org,domain3.dpdns.org
+```
+
+**注意:**
+- 不要有空格 (脚本会自动处理,但最好不要)
+- 域名必须包含完整的后缀 (.dpdns.org等)
+- 域名必须在对应账户下
+
+## 🔍 查看运行日志
+
+1. 进入GitHub仓库 → Actions
+2. 点击最近的运行记录
+3. 点击 "renew" job
+4. 展开 "Run renewal script" 查看详细日志
+
+日志会显示:
+- 每个账户的登录状态
+- 每个域名的续期状态
+- 任何错误或警告信息
+
+## ⚠️ 重要提示
+
+1. **Secrets安全性**: 
+   - 永远不要在代码中硬编码密码
+   - 不要将Secrets提交到Git
+   - 定期更新密码
+
+2. **续期时机**:
+   - 域名到期前180天内才能使用免费续期
+   - 建议在到期前3-6个月开始尝试
+   - 脚本会每月自动运行2次
+
+3. **多账户管理**:
+   - 每个账户独立配置
+   - 可以为不同账户配置不同的域名
+   - 支持无限多个账户
+
+4. **故障恢复**:
+   - 如果某个域名续期失败,脚本会继续处理其他域名
+   - 可以查看上传的错误截图 (如果有)
+   - 可以手动重新运行workflow
+
+## 📊 执行流程图
 
 ```
-.
-├── .github/workflows/
-│   └── renew-domain.yml    # GitHub Actions 工作流配置文件，定义了何时以及如何运行任务
-└── renew.py                # 核心 Python 脚本，负责执行所有浏览器自动化操作
+开始
+ ↓
+读取账户1配置
+ ↓
+启动浏览器 → 登录账户1
+ ↓
+获取域名列表
+ ↓
+循环处理每个域名:
+  - 访问域名管理页面
+  - 点击Renew标签
+  - 点击Request free renewal
+  - 确认并检查结果
+ ↓
+关闭浏览器
+ ↓
+读取账户2配置 (如果存在)
+ ↓
+重复上述流程...
+ ↓
+所有账户处理完毕
+ ↓
+结束
 ```
 
-## 🛠️ 问题排查
+## 🆘 获取帮助
 
-如果 Actions 运行失败（显示红色的叉 ❌），请不要担心：
-1.  点击进入失败的工作流。
-2.  查看 **Run python renew.py** 步骤的日志，通常错误信息会在这里显示。
-3.  在工作流的 **Summary** 页面，会有一个名为 `error-screenshots` 的构建产物 (Artifact)。下载并解压它，您可以看到脚本失败时卡在了哪个页面的截图，这对于定位问题非常有帮助。
+如果遇到问题:
+1. 先查看本说明文档的常见问题部分
+2. 查看GitHub Actions的运行日志
+3. 检查Secrets配置是否正确
+4. 确保域名在续期窗口期内
+5. 在GitHub仓库提交Issue描述问题
 
----
+## 📅 更新日志
 
-***That's it! Enjoy your freedom from manual renewals. ✨***
+### v2.0 (2025-01-30)
+- 🔧 修复Chrome驱动崩溃问题
+- 🎯 适配新版DigitalPlat界面
+- ✨ 增加更稳定的元素定位
+- 📝 改进日志输出
+- ⏰ 优化自动运行时间
+
+### v1.0
+- 🎉 初始版本
+- ⚡ 基本续期功能
